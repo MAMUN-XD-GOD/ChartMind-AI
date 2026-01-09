@@ -7,20 +7,30 @@ import numpy as np
 app = Flask(__name__)
 CORS(app)
 
-# ---------- Vision Engine (Phase 3) ----------
+# -----------------------------
+# GLOBAL STATE (session memory)
+# -----------------------------
+STATE = {
+    "consecutive_losses": 0,
+    "trades_taken": 0,
+    "cooldown_until": 0,
+    "last_trade_time": 0
+}
+
+# -----------------------------
+# PHASE 3: VISION ENGINE
+# -----------------------------
 def analyze_chart_image(img):
     gray = img.convert("L")
     arr = np.array(gray)
     h, w = arr.shape
 
-    # Clarity check
-    contrast = arr.std()
-    if contrast < 15:
+    # Clarity / noise check
+    if arr.std() < 15:
         return {"blocked": True, "reason": "Low contrast / unclear chart"}
 
     # Recent candles ROI
     roi = arr[int(h*0.3):int(h*0.8), int(w*0.55):int(w*0.95)]
-
     mean_top = roi[:roi.shape[0]//2].mean()
     mean_bottom = roi[roi.shape[0]//2:].mean()
 
@@ -28,11 +38,11 @@ def analyze_chart_image(img):
     body_strength = abs(mean_bottom - mean_top)
 
     if body_strength > 25:
-        momentum = "STRONG"; confidence = 72
+        momentum, confidence = "STRONG", 72
     elif body_strength > 15:
-        momentum = "MEDIUM"; confidence = 64
+        momentum, confidence = "MEDIUM", 64
     else:
-        momentum = "WEAK"; confidence = 55
+        momentum, confidence = "WEAK", 55
 
     return {
         "blocked": False,
@@ -41,21 +51,18 @@ def analyze_chart_image(img):
         "confidence": confidence
     }
 
-# ---------- Signal Engine (Phase 4) ----------
+# -----------------------------
+# PHASE 4: SIGNAL ENGINE
+# -----------------------------
 def binary_signal_engine(vision):
-    # No-trade filter
     if vision["confidence"] < 60 or vision["momentum"] == "WEAK":
         return {"trade": False, "reason": "Low quality setup"}
 
     signal = "CALL" if vision["direction"] == "BULLISH" else "PUT"
-
-    # Expiry logic (rule-based)
     if vision["momentum"] == "STRONG":
-        expiry = "2–3 candles"
-        conf = min(78, vision["confidence"] + 6)
+        expiry, conf = "2–3 candles", min(78, vision["confidence"] + 6)
     else:
-        expiry = "1–2 candles"
-        conf = vision["confidence"]
+        expiry, conf = "1–2 candles", vision["confidence"]
 
     return {
         "trade": True,
@@ -66,19 +73,14 @@ def binary_signal_engine(vision):
     }
 
 def forex_signal_engine(vision):
-    # No-trade filter
     if vision["confidence"] < 60:
         return {"trade": False, "reason": "Low confidence"}
 
     direction = "BUY" if vision["direction"] == "BULLISH" else "SELL"
-
-    # Style detect
     if vision["momentum"] == "STRONG":
-        style = "SCALPING / INTRADAY"
-        rr = "1:1.5 – 1:2"
+        style, rr = "SCALPING / INTRADAY", "1:1.5 – 1:2"
     else:
-        style = "INTRADAY / SWING"
-        rr = "1:2 – 1:3"
+        style, rr = "INTRADAY / SWING", "1:2 – 1:3"
 
     return {
         "trade": True,
@@ -89,7 +91,47 @@ def forex_signal_engine(vision):
         "confidence": vision["confidence"]
     }
 
-# ---------- API ----------
+# -----------------------------
+# PHASE 5: RISK + SMART MTG
+# -----------------------------
+def risk_guard(vision):
+    now = int(time.time())
+
+    # Cooldown active?
+    if STATE["cooldown_until"] > now:
+        return {"allow": False, "reason": "Cooldown active after losses"}
+
+    # Overtrade guard (max 15/session)
+    if STATE["trades_taken"] >= 15:
+        return {"allow": False, "reason": "Overtrade limit reached"}
+
+    # Rapid-fire guard (min 30s gap)
+    if now - STATE["last_trade_time"] < 30:
+        return {"allow": False, "reason": "Wait before next trade"}
+
+    # Escalation: after losses require higher quality
+    if STATE["consecutive_losses"] >= 2:
+        if vision["confidence"] < 68 or vision["momentum"] != "STRONG":
+            return {"allow": False, "reason": "Quality insufficient after losses"}
+
+    return {"allow": True}
+
+def smart_mtg_advice(vision):
+    """
+    Optional guidance only. No auto-martingale.
+    """
+    if STATE["consecutive_losses"] == 1:
+        if vision["confidence"] >= 70 and vision["momentum"] == "STRONG":
+            return {
+                "mtg": "OPTIONAL",
+                "cap": "x1.5 (MAX)",
+                "note": "Recovery allowed only if next setup confirms"
+            }
+    return {"mtg": "BLOCKED"}
+
+# -----------------------------
+# API
+# -----------------------------
 @app.route("/analyze", methods=["POST"])
 def analyze_chart():
     if "chart" not in request.files:
@@ -104,42 +146,64 @@ def analyze_chart():
     except:
         return jsonify({"error": "Invalid image"}), 400
 
-    # Size guard
     if width < 300 or height < 200:
         return jsonify({"status": "blocked", "reason": "Chart too small / unclear"})
 
-    # Timestamp guard
     now = int(time.time())
     upload_time = int(request.form.get("timestamp", now))
-    delay = now - upload_time
-    if delay > 120:
-        return jsonify({"status": "warning", "reason": "Late screenshot", "delay_sec": delay})
+    if now - upload_time > 120:
+        return jsonify({"status": "warning", "reason": "Late screenshot"})
 
     market = request.form.get("market", "binary").lower()
 
-    # Vision
     vision = analyze_chart_image(img)
     if vision["blocked"]:
         return jsonify({"status": "blocked", "reason": vision["reason"]})
 
-    # Signal by market
+    guard = risk_guard(vision)
+    if not guard["allow"]:
+        return jsonify({"status": "no_trade", "reason": guard["reason"]})
+
+    # Signal
     if market == "binary":
         out = binary_signal_engine(vision)
     else:
         out = forex_signal_engine(vision)
 
     if not out["trade"]:
-        return jsonify({
-            "status": "no_trade",
-            "reason": out["reason"],
-            "confidence": vision["confidence"]
-        })
+        return jsonify({"status": "no_trade", "reason": out["reason"], "confidence": vision["confidence"]})
+
+    # Update state
+    STATE["trades_taken"] += 1
+    STATE["last_trade_time"] = now
 
     return jsonify({
         "status": "ok",
         "vision": vision,
-        "signal": out
+        "signal": out,
+        "risk": {
+            "consecutive_losses": STATE["consecutive_losses"],
+            "mtg_advice": smart_mtg_advice(vision)
+        }
     })
+
+@app.route("/feedback", methods=["POST"])
+def feedback():
+    """
+    User clicks WIN or LOSS after trade.
+    """
+    result = request.json.get("result")
+    now = int(time.time())
+
+    if result == "win":
+        STATE["consecutive_losses"] = 0
+    elif result == "loss":
+        STATE["consecutive_losses"] += 1
+        # Cooldown after 3 losses
+        if STATE["consecutive_losses"] >= 3:
+            STATE["cooldown_until"] = now + 10 * 60  # 10 minutes
+
+    return jsonify({"ok": True, "state": STATE})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
