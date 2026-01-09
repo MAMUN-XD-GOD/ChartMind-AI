@@ -1,0 +1,84 @@
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: radial-gradient(circle, #0b0f1a, #000);
+  color: #fff;
+}
+
+.app {
+  max-width: 420px;
+  margin: auto;
+  padding: 20px;
+  text-align: center;
+}
+
+h1 span {
+  color: #4ddcff;
+}
+
+.subtitle {
+  opacity: 0.7;
+  margin-bottom: 20px;
+}
+
+.switch button {
+  background: none;
+  border: 1px solid #333;
+  color: #fff;
+  padding: 8px 15px;
+  margin: 5px;
+  cursor: pointer;
+}
+
+.switch .active {
+  background: #4ddcff;
+  color: #000;
+}
+
+.upload-box {
+  border: 2px dashed #333;
+  padding: 25px;
+  margin: 20px 0;
+}
+
+.upload-box label {
+  cursor: pointer;
+  color: #4ddcff;
+}
+
+#chartUpload {
+  display: none;
+}
+
+#preview img {
+  max-width: 100%;
+  margin-top: 10px;
+  border-radius: 8px;
+}
+
+#analyzeBtn {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(90deg, #4ddcff, #6f7cff);
+  border: none;
+  color: #000;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+#result {
+  margin-top: 20px;
+  padding: 15px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.05);
+}
+
+.hidden {
+  display: none;
+}
+
+footer {
+  margin-top: 30px;
+  font-size: 12px;
+  opacity: 0.6;
+  }
