@@ -4,9 +4,10 @@ from core.ocr import detect_pair
 from core.market import detect_market
 from core.session import detect_session
 from core.technical import technical_analyze
+from core.smc import smc_analyze
 
 def analyze_chart(image_path, meta=None):
-    log(f"Phase-5 analyze start: {image_path}")
+    log(f"Phase-6 analyze start: {image_path}")
 
     context = {
         "market": "auto",
@@ -15,7 +16,8 @@ def analyze_chart(image_path, meta=None):
         "timeframe": "auto",
         "vision": {},
         "technical": {},
-        "state": "technical_processed"
+        "smc": {},
+        "state": "smc_processed"
     }
 
     # Vision
@@ -31,5 +33,9 @@ def analyze_chart(image_path, meta=None):
     # Technical Core
     technical = technical_analyze(vision_data)
     context["technical"] = technical
+
+    # SMC / ICT Core
+    smc = smc_analyze(vision_data)
+    context["smc"] = smc
 
     return context
