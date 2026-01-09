@@ -7,13 +7,12 @@ from config import UPLOAD_FOLDER, ALLOWED_EXTENSIONS, APP_NAME, APP_OWNER
 from core.logger import log
 from core.response import success, error
 from storage.memory import increment_request, get_memory
+from core.analyzer import analyze_chart
 
 app = Flask(__name__)
 CORS(app)
 
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-
-# Ensure upload folder exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 def allowed_file(filename):
@@ -25,8 +24,8 @@ def home():
     return jsonify(success({
         "app": APP_NAME,
         "owner": APP_OWNER,
-        "phase": 1,
-        "status": "Foundation ready"
+        "phase": 2,
+        "status": "Web core ready"
     }))
 
 
@@ -38,34 +37,35 @@ def health():
     }))
 
 
-@app.route("/upload", methods=["POST"])
-def upload():
+@app.route("/analyze", methods=["POST"])
+def analyze():
     increment_request()
 
     if "file" not in request.files:
-        return jsonify(error("No file part")), 400
+        return jsonify(error("No file uploaded")), 400
 
     file = request.files["file"]
 
     if file.filename == "":
-        return jsonify(error("No selected file")), 400
+        return jsonify(error("Empty filename")), 400
 
     if not allowed_file(file.filename):
         return jsonify(error("Unsupported file type")), 400
 
     filename = datetime.utcnow().strftime("%Y%m%d%H%M%S_") + file.filename
     filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-
     file.save(filepath)
 
-    log(f"File uploaded: {filename}")
+    log(f"Chart received: {filename}")
+
+    context = analyze_chart(filepath)
 
     return jsonify(success({
-        "filename": filename,
-        "message": "Upload successful (analysis will be added in next phases)"
+        "context": context,
+        "note": "Signal engine will activate in next phases"
     }))
 
 
 if __name__ == "__main__":
-    log("Starting ChartMind AI - Phase 1")
+    log("Starting ChartMind AI - Phase 2")
     app.run(host="0.0.0.0", port=5000, debug=True)
