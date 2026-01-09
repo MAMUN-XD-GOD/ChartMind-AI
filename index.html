@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="style.css">
+<title>ChartMind AI</title>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>ChartMind AI</h1>
+        <p>Owner: David Mamun William</p>
+    </header>
+
+    <section class="upload-section">
+        <input type="file" id="chartUpload" multiple>
+        <button id="analyzeBtn">Analyze</button>
+    </section>
+
+    <section class="dashboard">
+        <h2>Analysis Dashboard</h2>
+        <div id="chartPreview"></div>
+        <div id="signalInfo">
+            <p>Market: <span id="market">-</span></p>
+            <p>Pair: <span id="pair">-</span></p>
+            <p>Session: <span id="session">-</span></p>
+            <p>Trend: <span id="trend">-</span></p>
+            <p>Direction: <span id="direction">-</span></p>
+            <p>Entry: <span id="entry">-</span></p>
+            <p>TP: <span id="tp">-</span></p>
+            <p>SL: <span id="sl">-</span></p>
+            <p>Timeframe: <span id="timeframe">-</span></p>
+        </div>
+    </section>
+
+    <section class="feedback">
+        <button id="winBtn">Win</button>
+        <button id="lossBtn">Loss</button>
+    </section>
+</div>
+<script src="main.js"></script>
+</body>
+                                        </html>
