@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, render_template
 from core.analyzer import analyze_chart
 from core.feedback import record_feedback, compute_accuracy, get_feedback_stats
+from core.news import fetch_market_news
 import os
 import json
 
@@ -28,7 +29,7 @@ if not os.path.exists(FEEDBACK_FILE):
 def home():
     return render_template('index.html')
 
-# Analyze uploaded chart(s)
+# Analyze uploaded chart(s) → Phase 1–7 logic
 @app.route('/analyze', methods=['POST'])
 def analyze():
     if 'charts' not in request.files:
@@ -42,19 +43,17 @@ def analyze():
         path = os.path.join(UPLOAD_FOLDER, filename)
         file.save(path)
 
-        # ----------------------
-        # Full Phase 1–7 analysis
-        # ----------------------
+        # FULL Phase 1–7 analysis
         context = analyze_chart(path)  # returns full signal, market, session, trend, entry/TP/SL, etc
         responses.append(context)
 
-        # Remove temp file
+        # Delete temp file
         os.remove(path)
 
     # Return first chart's context for dashboard
     return jsonify(responses[0])
 
-# Feedback: Win / Loss
+# Feedback → Win/Loss + Accuracy (Phase 10)
 @app.route('/feedback', methods=['POST'])
 def feedback():
     data = request.json
@@ -72,7 +71,7 @@ def feedback():
         "market_pair_stats": stats_summary
     }), 200
 
-# Optional: accuracy endpoint (for dashboard stats)
+# Accuracy stats endpoint
 @app.route('/accuracy', methods=['GET'])
 def accuracy():
     overall_accuracy = compute_accuracy()
@@ -81,6 +80,12 @@ def accuracy():
         "overall_accuracy": overall_accuracy,
         "market_pair_stats": stats_summary
     })
+
+# Phase 11 → News / Fundamental Analysis
+@app.route('/news', methods=['GET'])
+def news():
+    news_data = fetch_market_news()
+    return jsonify(news_data)
 
 # ----------------------
 # Run Server
