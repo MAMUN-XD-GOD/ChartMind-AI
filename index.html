@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ChartMind AI</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app">
+  <h1>ChartMind <span>AI</span></h1>
+  <p class="subtitle">Advanced Market Intelligence</p>
+
+  <div class="switch">
+    <button class="active">Binary</button>
+    <button>Forex</button>
+  </div>
+
+  <div class="upload-box">
+    <input type="file" id="chartUpload" accept="image/*">
+    <label for="chartUpload">📤 Upload Chart Screenshot</label>
+  </div>
+
+  <div id="preview"></div>
+
+  <button id="analyzeBtn" disabled>Analyze Chart</button>
+
+  <div id="result" class="hidden">
+    <h2>AI Signal</h2>
+    <p id="signal">—</p>
+    <p id="confidence">Confidence: —</p>
+  </div>
+
+  <footer>
+    Owner: <b>David Mamun William</b>
+  </footer>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
