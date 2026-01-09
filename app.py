@@ -1,71 +1,67 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-import os
-from datetime import datetime
-
-from config import UPLOAD_FOLDER, ALLOWED_EXTENSIONS, APP_NAME, APP_OWNER
-from core.logger import log
-from core.response import success, error
-from storage.memory import increment_request, get_memory
+from flask import Flask, request, jsonify, render_template
 from core.analyzer import analyze_chart
+import os
+import json
 
-app = Flask(__name__)
-CORS(app)
+app = Flask(__name__, template_folder='ui', static_folder='ui')
 
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+# Temporary folder
+UPLOAD_FOLDER = "temp_uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-def allowed_file(filename):
-    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+# Win/Loss storage
+feedback_file = os.path.join(UPLOAD_FOLDER, "feedback.json")
+if not os.path.exists(feedback_file):
+    with open(feedback_file, "w") as f:
+        json.dump([], f)
 
-
-@app.route("/", methods=["GET"])
+# Home Page → Mobile UI
+@app.route('/')
 def home():
-    return jsonify(success({
-        "app": APP_NAME,
-        "owner": APP_OWNER,
-        "phase": 2,
-        "status": "Web core ready"
-    }))
+    return render_template('index.html')
 
-
-@app.route("/health", methods=["GET"])
-def health():
-    return jsonify(success({
-        "server_time": datetime.utcnow().isoformat(),
-        "memory": get_memory()
-    }))
-
-
-@app.route("/analyze", methods=["POST"])
+# Analyze chart(s)
+@app.route('/analyze', methods=['POST'])
 def analyze():
-    increment_request()
+    if 'charts' not in request.files:
+        return jsonify({"error":"No chart uploaded"}), 400
 
-    if "file" not in request.files:
-        return jsonify(error("No file uploaded")), 400
+    files = request.files.getlist('charts')
+    responses = []
 
-    file = request.files["file"]
+    for file in files:
+        filename = file.filename
+        path = os.path.join(UPLOAD_FOLDER, filename)
+        file.save(path)
 
-    if file.filename == "":
-        return jsonify(error("Empty filename")), 400
+        # FULL Phase 1–7 analysis
+        context = analyze_chart(path)
 
-    if not allowed_file(file.filename):
-        return jsonify(error("Unsupported file type")), 400
+        responses.append(context)
 
-    filename = datetime.utcnow().strftime("%Y%m%d%H%M%S_") + file.filename
-    filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-    file.save(filepath)
+        # Delete temp file after analysis
+        os.remove(path)
 
-    log(f"Chart received: {filename}")
+    # Return first chart's context for dashboard (can extend to multiple)
+    return jsonify(responses[0])
 
-    context = analyze_chart(filepath)
+# Win/Loss Feedback → improve future signal quality
+@app.route('/feedback', methods=['POST'])
+def feedback():
+    data = request.json
+    if not data or "signal_id" not in data or "result" not in data:
+        return jsonify({"error":"Invalid feedback data"}), 400
 
-    return jsonify(success({
-        "context": context,
-        "note": "Signal engine will activate in next phases"
-    }))
+    # Load existing
+    with open(feedback_file,"r") as f:
+        feedback_data = json.load(f)
 
+    feedback_data.append(data)
 
-if __name__ == "__main__":
-    log("Starting ChartMind AI - Phase 2")
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    with open(feedback_file,"w") as f:
+        json.dump(feedback_data,f, indent=4)
+
+    return jsonify({"status":"Feedback recorded"}), 200
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)
